@@ -181,14 +181,14 @@ def run_flask():
 async def run_bot():
     """
     Запускаем polling-бота.
-    skip_updates=True сбросит накопившиеся обновления;
-    reset_webhook=True удалит старый webhook перед polling.
+    Перед polling удаляем webhook и сбрасываем накопившиеся обновления.
     """
+    log.info("Удаляем старый webhook и сбрасываем накопившиеся обновления…")
+    await bot.delete_webhook(drop_pending_updates=True)
     log.info("Запускаю polling‑бота …")
     await dp.start_polling(
         bot,
         skip_updates=True,
-        reset_webhook=True,
     )
 
 
