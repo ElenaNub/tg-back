@@ -1,3 +1,6 @@
 .env
 __pycache__/
 *.sqlite
+venv/
+*.pyc
+access.db
