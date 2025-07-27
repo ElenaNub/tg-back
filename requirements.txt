@@ -1,5 +1,5 @@
 aiogram[fast]==3.4.1
 Flask==2.3.3
-flask‑cors>=3.0
+flask-cors>=3.0
 python-dotenv==1.0.1
 requests==2.31.0
