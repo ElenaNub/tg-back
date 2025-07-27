@@ -18,16 +18,16 @@ from flask_cors import CORS, cross_origin
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.types import PreCheckoutQuery, Message
 
-# ─────────── Загрузка переменных окружения ───────────
+# ─────────── Настройка ───────────
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 PROVIDER_TOKEN = os.getenv("PROVIDER_TOKEN")
 PORT = int(os.getenv("PORT", "8080"))
 
 if not BOT_TOKEN:
-    raise RuntimeError("❌ Переменная BOT_TOKEN не задана")
+    raise RuntimeError("❌ BOT_TOKEN не задан")
 if not PROVIDER_TOKEN:
-    raise RuntimeError("❌ Переменная PROVIDER_TOKEN не задана")
+    raise RuntimeError("❌ PROVIDER_TOKEN не задан")
 
 BOT_API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
@@ -131,22 +131,26 @@ def api_buy():
     log.info("▶️ Запрос createInvoiceLink: %r", invoice_req)
     try:
         r = requests.post(f"{BOT_API_URL}/createInvoiceLink", json=invoice_req, timeout=10)
-        log.info("🔄 Telegram ответ: %s", r.text)
+        log.info("🔄 Ответ от Telegram: %s", r.text)
         r.raise_for_status()
         try:
             resp = r.json()
         except Exception:
-            log.error("❌ Ошибка разбора JSON от Telegram: %s", r.text)
-            return jsonify(ok=False, error="bad JSON from Telegram"), 502
+            log.error("❌ Не JSON: %s", r.text)
+            return jsonify(ok=False, error="bad json"), 502
 
-        if resp.get("ok") and "invoice_link" in resp["result"]:
-            return jsonify(ok=True, invoice_link=resp["result"]["invoice_link"])
+        if resp.get("ok"):
+            result = resp["result"]
+            if isinstance(result, str):
+                return jsonify(ok=True, invoice_link=result)
+            elif isinstance(result, dict) and "invoice_link" in result:
+                return jsonify(ok=True, invoice_link=result["invoice_link"])
 
-        log.error("❌ Ошибка в ответе Telegram: %r", resp)
+        log.error("❌ Ошибка в структуре createInvoiceLink: %r", resp)
         return jsonify(ok=False, error="invoice failed"), 502
 
     except requests.RequestException as exc:
-        log.exception("❌ Ошибка при обращении к Telegram API: %s", exc)
+        log.exception("❌ Ошибка сети или Telegram: %s", exc)
         return jsonify(ok=False, error="network error"), 500
 
 # ─────────── Aiogram ───────────
@@ -172,7 +176,7 @@ dp.include_router(router)
 
 # ─────────── Запуск ───────────
 def run_flask():
-    log.info("🌐 Запускаю Flask на 0.0.0.0:%s …", PORT)
+    log.info("🌐 Flask стартует на 0.0.0.0:%s …", PORT)
     app.run(host="0.0.0.0", port=PORT, use_reloader=False, threaded=False)
 
 async def run_bot():
