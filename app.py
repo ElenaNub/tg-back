@@ -9,8 +9,11 @@ import threading
 import sqlite3
 import requests
 import asyncio
+
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
+from flask_cors import CORS  # <-- импортируем
+
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import PreCheckoutQuery, Message
 
@@ -28,6 +31,10 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
 )
 log = logging.getLogger("app")
+
+# ─────────── Flask HTTP‑API ─────────────────────────────────────────────
+app = Flask(__name__)
+CORS(app, resources={r"/*": {"origins": "*"}})  # <-- включаем CORS для всех маршрутов
 
 # ─────────── База данных ───────────────────────────────────────────────
 DB = sqlite3.connect("access.db", check_same_thread=False)
@@ -80,9 +87,6 @@ def verify_initdata(data: str) -> int | None:
     except (KeyError, ValueError):
         return None
 
-# ─────────── Flask HTTP‑API ─────────────────────────────────────────────
-app = Flask(__name__)
-
 @app.post("/api/has")
 def api_has():
     uid = verify_initdata(request.get_data(as_text=True))
@@ -103,7 +107,7 @@ def api_buy():
     if not chat_id or days not in (1, 30):
         return jsonify(ok=False, error="bad args"), 400
 
-    amount = 29900 if days == 1 else 150000  # копейки
+    amount = 29900 if days == 1 else 150000
     payload = f"premium_{days}d"
     invoice_req = {
         "chat_id": chat_id,
@@ -117,6 +121,7 @@ def api_buy():
     }
 
     try:
+        # создаём ссылку на счёт
         r = requests.post(
             f"{BOT_API_URL}/createInvoiceLink",
             json=invoice_req,
@@ -125,8 +130,7 @@ def api_buy():
         r.raise_for_status()
         resp = r.json()
         if resp.get("ok"):
-            link = resp["result"]["invoice_link"]
-            return jsonify(ok=True, invoice_link=link)
+            return jsonify(ok=True, invoice_link=resp["result"]["invoice_link"])
         log.error("createInvoiceLink error: %s", resp)
     except requests.RequestException as exc:
         log.exception("Error createInvoiceLink: %s", exc)
