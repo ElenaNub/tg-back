@@ -189,6 +189,7 @@ async def run_bot():
     await dp.start_polling(
         bot,
         skip_updates=True,
+        reset_webhook=True,
     )
 
 
