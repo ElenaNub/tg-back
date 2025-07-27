@@ -18,32 +18,45 @@ from flask_cors import CORS, cross_origin
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.types import PreCheckoutQuery, Message
 
-# ─────────── Настройка ────────────────────────────────────────────────
+# ─────────── Загрузка переменных окружения ───────────
 load_dotenv()
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 PROVIDER_TOKEN = os.getenv("PROVIDER_TOKEN")
-if not BOT_TOKEN:
-    raise RuntimeError("BOT_TOKEN не задан")
-if not PROVIDER_TOKEN:
-    raise RuntimeError("PROVIDER_TOKEN не задан")
 PORT = int(os.getenv("PORT", "8080"))
+
+if not BOT_TOKEN:
+    raise RuntimeError("❌ Переменная BOT_TOKEN не задана")
+if not PROVIDER_TOKEN:
+    raise RuntimeError("❌ Переменная PROVIDER_TOKEN не задана")
+
 BOT_API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
+# ─────────── Логирование ───────────
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
 )
 log = logging.getLogger("app")
 
-# ─────────── Flask ─────────────────────────────────────────────
+# ─────────── Flask ───────────
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}})
 
-# ─────────── БД ────────────────────────────────────────────────
+# ─────────── SQLite ───────────
 DB = sqlite3.connect("access.db", check_same_thread=False)
 DB_LOCK = threading.Lock()
-DB.execute("""CREATE TABLE IF NOT EXISTS access (user_id INTEGER PRIMARY KEY, until_ts INTEGER NOT NULL);""")
-DB.execute("""CREATE TABLE IF NOT EXISTS charges (user_id INTEGER, charge_id TEXT);""")
+DB.execute("""
+    CREATE TABLE IF NOT EXISTS access (
+        user_id INTEGER PRIMARY KEY,
+        until_ts INTEGER NOT NULL
+    )
+""")
+DB.execute("""
+    CREATE TABLE IF NOT EXISTS charges (
+        user_id INTEGER,
+        charge_id TEXT
+    )
+""")
 DB.commit()
 
 def grant_access(user_id: int, days: int) -> None:
@@ -63,15 +76,20 @@ def verify_initdata(data: str) -> int | None:
         passed_hash = parts.pop("hash")
     except Exception:
         return None
+
     payload = "\n".join(f"{k}={v}" for k, v in sorted(parts.items()))
     secret = hashlib.sha256(BOT_TOKEN.encode()).digest()
     calc_hash = hmac.new(secret, payload.encode(), hashlib.sha256).hexdigest()
+
     if not hmac.compare_digest(calc_hash, passed_hash):
         return None
+
     try:
         return int(parts["user[id]"])
     except Exception:
         return None
+
+# ─────────── Flask API ───────────
 
 @app.get("/api/has")
 @cross_origin()
@@ -80,6 +98,7 @@ def api_has():
     uid = verify_initdata(init_data)
     if not uid:
         return jsonify(ok=False), 403
+
     now_ts = int(time.time())
     with DB_LOCK:
         row = DB.execute("SELECT until_ts FROM access WHERE user_id=?", (uid,)).fetchone()
@@ -89,9 +108,10 @@ def api_has():
 @app.post("/buy")
 @cross_origin()
 def api_buy():
-    data = request.get_json(silent=True) or {}
+    data: dict = request.get_json(silent=True) or {}
     chat_id = data.get("user_id")
     days = int(data.get("days", 1))
+
     if not chat_id or days not in (1, 30):
         return jsonify(ok=False, error="bad args"), 400
 
@@ -108,19 +128,28 @@ def api_buy():
         "start_parameter": payload,
     }
 
+    log.info("▶️ Запрос createInvoiceLink: %r", invoice_req)
     try:
         r = requests.post(f"{BOT_API_URL}/createInvoiceLink", json=invoice_req, timeout=10)
+        log.info("🔄 Telegram ответ: %s", r.text)
         r.raise_for_status()
-        resp = r.json()
-        if resp.get("ok"):
+        try:
+            resp = r.json()
+        except Exception:
+            log.error("❌ Ошибка разбора JSON от Telegram: %s", r.text)
+            return jsonify(ok=False, error="bad JSON from Telegram"), 502
+
+        if resp.get("ok") and "invoice_link" in resp["result"]:
             return jsonify(ok=True, invoice_link=resp["result"]["invoice_link"])
-        log.error("Ошибка в createInvoiceLink: %r", resp)
+
+        log.error("❌ Ошибка в ответе Telegram: %r", resp)
+        return jsonify(ok=False, error="invoice failed"), 502
+
     except requests.RequestException as exc:
-        log.exception("Ошибка createInvoiceLink: %s", exc)
+        log.exception("❌ Ошибка при обращении к Telegram API: %s", exc)
+        return jsonify(ok=False, error="network error"), 500
 
-    return jsonify(ok=False, error="invoice failed"), 500
-
-# ─────────── Aiogram ─────────────────────────────────────────────
+# ─────────── Aiogram ───────────
 bot = Bot(BOT_TOKEN)
 dp = Dispatcher()
 router = Router()
@@ -141,13 +170,14 @@ async def on_success(msg: Message):
 
 dp.include_router(router)
 
+# ─────────── Запуск ───────────
 def run_flask():
-    log.info("Запускаю Flask на 0.0.0.0:%s …", PORT)
+    log.info("🌐 Запускаю Flask на 0.0.0.0:%s …", PORT)
     app.run(host="0.0.0.0", port=PORT, use_reloader=False, threaded=False)
 
 async def run_bot():
     await bot.delete_webhook(drop_pending_updates=True)
-    log.info("Запускаю polling‑бота …")
+    log.info("🤖 Запускаю polling-бота …")
     await dp.start_polling(bot, skip_updates=True, reset_webhook=True)
 
 def main():
