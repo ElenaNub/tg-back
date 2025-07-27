@@ -1,19 +1,9 @@
 #!/usr/bin/env python
 from __future__ import annotations
-import os
-import time
-import hmac
-import hashlib
-import logging
-import threading
-import sqlite3
-import requests
-import asyncio
-
+import os, time, hmac, hashlib, logging, threading, sqlite3, requests, asyncio
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
-from flask_cors import CORS  # <-- импортируем
-
+from flask_cors import CORS, cross_origin
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import PreCheckoutQuery, Message
 
@@ -26,15 +16,12 @@ if not BOT_TOKEN:
 PORT = int(os.getenv("PORT", "8080"))
 BOT_API_URL = f"https://api.telegram.org/bot{BOT_TOKEN}"
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 log = logging.getLogger("app")
 
-# ─────────── Flask HTTP‑API ─────────────────────────────────────────────
+# ─────────── Flask + CORS ─────────────────────────────────────────────
 app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}})  # <-- включаем CORS для всех маршрутов
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # ─────────── База данных ───────────────────────────────────────────────
 DB = sqlite3.connect("access.db", check_same_thread=False)
@@ -70,7 +57,6 @@ def grant_access(user_id: int, days: int) -> None:
     DB.commit()
     log.info("✅ user %s получил доступ до %s", user_id, until_ts)
 
-# ─────────── Проверка initData ─────────────────────────────────────────
 def verify_initdata(data: str) -> int | None:
     try:
         parts = dict(p.split("=", 1) for p in data.split("&"))
@@ -88,18 +74,18 @@ def verify_initdata(data: str) -> int | None:
         return None
 
 @app.post("/api/has")
+@cross_origin()
 def api_has():
     uid = verify_initdata(request.get_data(as_text=True))
     if not uid:
         return jsonify(ok=False), 403
     now_ts = int(time.time())
-    row = DB.execute(
-        "SELECT until_ts FROM access WHERE user_id=?", (uid,)
-    ).fetchone()
+    row = DB.execute("SELECT until_ts FROM access WHERE user_id=?", (uid,)).fetchone()
     has_access = bool(row and row[0] > now_ts)
     return jsonify(ok=True, has=has_access, until=row[0] if row else 0)
 
 @app.post("/buy")
+@cross_origin()
 def api_buy():
     data: dict = request.get_json(silent=True) or {}
     chat_id = data.get("user_id")
@@ -120,20 +106,17 @@ def api_buy():
         "start_parameter": payload,
     }
 
+    log.info("Запрос createInvoiceLink: %r", invoice_req)
     try:
-        # создаём ссылку на счёт
-        r = requests.post(
-            f"{BOT_API_URL}/createInvoiceLink",
-            json=invoice_req,
-            timeout=10,
-        )
+        r = requests.post(f"{BOT_API_URL}/createInvoiceLink", json=invoice_req, timeout=10)
         r.raise_for_status()
         resp = r.json()
+        log.info("Ответ createInvoiceLink: %r", resp)
         if resp.get("ok"):
             return jsonify(ok=True, invoice_link=resp["result"]["invoice_link"])
-        log.error("createInvoiceLink error: %s", resp)
+        log.error("Ошибка в createInvoiceLink: %r", resp)
     except requests.RequestException as exc:
-        log.exception("Error createInvoiceLink: %s", exc)
+        log.exception("Ошибка createInvoiceLink: %s", exc)
 
     return jsonify(ok=False, error="invoice failed"), 500
 
@@ -150,10 +133,7 @@ async def on_success(msg: Message):
     days = 1 if msg.successful_payment.invoice_payload.endswith("1d") else 30
     grant_access(msg.from_user.id, days)
     charge_id = msg.successful_payment.provider_payment_charge_id
-    DB.execute(
-        "INSERT INTO charges (user_id, charge_id) VALUES (?, ?)",
-        (msg.from_user.id, charge_id),
-    )
+    DB.execute("INSERT INTO charges (user_id, charge_id) VALUES (?, ?)", (msg.from_user.id, charge_id))
     DB.commit()
     await msg.answer("✅ Оплата получена, доступ продлён!")
 
