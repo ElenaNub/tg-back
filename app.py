@@ -115,7 +115,7 @@ def api_buy():
     if not chat_id or days not in (1, 30):
         return jsonify(ok=False, error="bad args"), 400
 
-    amount = 29900 if days == 1 else 150000
+    amount = 4500 if days == 1 else 29300
     payload = f"premium_{days}d"
     invoice_req = {
         "chat_id": chat_id,
