@@ -117,6 +117,7 @@ def api_buy():
 
     amount = 10000 if days == 1 else 29300
     payload = f"premium_{days}d"
+
     invoice_req = {
         "chat_id": chat_id,
         "title": "Доступ к отчёту",
@@ -126,9 +127,34 @@ def api_buy():
         "currency": "RUB",
         "prices": [{"label": f"{days} дн.", "amount": amount}],
         "start_parameter": payload,
-         "photo_url": "https://raw.githubusercontent.com/ElenaNub/tg-back/main/pay.jpg",
+        "photo_url": "https://raw.githubusercontent.com/ElenaNub/tg-back/main/pay.jpg",
         "photo_width": 512,
         "photo_height": 256,
+
+        # Добавлено для чека
+        "need_email": True,
+        "send_email_to_provider": True,
+        "provider_data": {
+            "receipt": {
+                "customer": {
+                    "email": ""
+                },
+                "items": [
+                    {
+                        "description": f"Доступ к отчёту на {days} дн.",
+                        "quantity": 1,
+                        "amount": {
+                            "value": round(amount / 100, 2),
+                            "currency": "RUB"
+                        },
+                        "vat_code": 1,
+                        "payment_mode": "full_payment",
+                        "payment_subject": "service"
+                    }
+                ],
+                "tax_system_code": 6
+            }
+        }
     }
 
     log.info("▶️ Запрос createInvoiceLink: %r", invoice_req)
@@ -193,5 +219,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
