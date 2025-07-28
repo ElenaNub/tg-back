@@ -157,26 +157,18 @@ def api_buy():
         }
     }
 
-    log.info("▶️ Запрос createInvoiceLink: %r", invoice_req)
+    log.info("▶️ Запрос sendInvoice: %r", invoice_req)
     try:
-        r = requests.post(f"{BOT_API_URL}/createInvoiceLink", json=invoice_req, timeout=10)
+        r = requests.post(f"{BOT_API_URL}/sendInvoice", json=invoice_req, timeout=10)
         log.info("🔄 Ответ от Telegram: %s", r.text)
         r.raise_for_status()
-        try:
-            resp = r.json()
-        except Exception:
-            log.error("❌ Не JSON: %s", r.text)
-            return jsonify(ok=False, error="bad json"), 502
 
+        resp = r.json()
         if resp.get("ok"):
-            result = resp["result"]
-            if isinstance(result, str):
-                return jsonify(ok=True, invoice_link=result)
-            elif isinstance(result, dict) and "invoice_link" in result:
-                return jsonify(ok=True, invoice_link=result["invoice_link"])
-
-        log.error("❌ Ошибка в структуре createInvoiceLink: %r", resp)
-        return jsonify(ok=False, error="invoice failed"), 502
+            return jsonify(ok=True)
+        else:
+            log.error("❌ Ошибка sendInvoice: %r", resp)
+            return jsonify(ok=False, error="invoice failed"), 502
 
     except requests.RequestException as exc:
         log.exception("❌ Ошибка сети или Telegram: %s", exc)
