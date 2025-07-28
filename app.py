@@ -119,8 +119,7 @@ def api_buy():
     payload = f"premium_{days}d"
     invoice_req = {
         "chat_id": chat_id,
-        "title": "Премиум доступ",
-        "photo_url": "https://raw.githubusercontent.com/ElenaNub/tg-back/main/pay.jpg",
+        "title": "Доступ к отчёту",
         "description": f"{days} дн. доступа",
         "payload": payload,
         "provider_token": PROVIDER_TOKEN,
