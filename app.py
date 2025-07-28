@@ -115,7 +115,7 @@ def api_buy():
     if not chat_id or days not in (1, 30):
         return jsonify(ok=False, error="bad args"), 400
 
-    amount = 4500 if days == 1 else 29300
+    amount = 10000 if days == 1 else 29300
     payload = f"premium_{days}d"
     invoice_req = {
         "chat_id": chat_id,
@@ -126,6 +126,9 @@ def api_buy():
         "currency": "RUB",
         "prices": [{"label": f"{days} дн.", "amount": amount}],
         "start_parameter": payload,
+         "photo_url": "https://raw.githubusercontent.com/ElenaNub/tg-back/main/pay.jpg",
+        "photo_width": 512,
+        "photo_height": 256,
     }
 
     log.info("▶️ Запрос createInvoiceLink: %r", invoice_req)
