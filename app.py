@@ -13,7 +13,7 @@ from urllib.parse import parse_qsl
 
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
-from flask_cors import CORS, cross_origin
+from flask_cors import CORS
 
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.types import PreCheckoutQuery, Message
@@ -45,6 +45,7 @@ CORS(app, resources={r"/*": {"origins": "*"}})
 # ─────────── SQLite ───────────
 DB = sqlite3.connect("access.db", check_same_thread=False)
 DB_LOCK = threading.Lock()
+
 DB.execute("""
     CREATE TABLE IF NOT EXISTS access (
         user_id INTEGER PRIMARY KEY,
@@ -90,9 +91,7 @@ def verify_initdata(data: str) -> int | None:
         return None
 
 # ─────────── Flask API ───────────
-
 @app.get("/api/has")
-@cross_origin()
 def api_has():
     init_data = request.args.get("initData", "")
     uid = verify_initdata(init_data)
@@ -106,9 +105,8 @@ def api_has():
     return jsonify(ok=True, has=has_access, until=row[0] if row else 0)
 
 @app.post("/buy")
-@cross_origin()
 def api_buy():
-    data: dict = request.get_json(silent=True) or {}
+    data = request.get_json(silent=True) or {}
     chat_id = data.get("user_id")
     days = int(data.get("days", 1))
 
@@ -129,32 +127,7 @@ def api_buy():
         "start_parameter": payload,
         "photo_url": "https://raw.githubusercontent.com/ElenaNub/tg-back/main/pay.jpg",
         "photo_width": 512,
-        "photo_height": 256,
-
-        # Добавлено для чека
-        "need_email": True,
-        "send_email_to_provider": True,
-        "provider_data": {
-            "receipt": {
-                "customer": {
-                    "email": ""
-                },
-                "items": [
-                    {
-                        "description": f"Доступ к отчёту на {days} дн.",
-                        "quantity": 1,
-                        "amount": {
-                            "value": round(amount / 100, 2),
-                            "currency": "RUB"
-                        },
-                        "vat_code": 1,
-                        "payment_mode": "full_payment",
-                        "payment_subject": "service"
-                    }
-                ],
-                "tax_system_code": 6
-            }
-        }
+        "photo_height": 256
     }
 
     log.info("▶️ Запрос createInvoiceLink: %r", invoice_req)
@@ -162,11 +135,7 @@ def api_buy():
         r = requests.post(f"{BOT_API_URL}/createInvoiceLink", json=invoice_req, timeout=10)
         log.info("🔄 Ответ от Telegram: %s", r.text)
         r.raise_for_status()
-        try:
-            resp = r.json()
-        except Exception:
-            log.error("❌ Не JSON: %s", r.text)
-            return jsonify(ok=False, error="bad json"), 502
+        resp = r.json()
 
         if resp.get("ok"):
             result = resp["result"]
