@@ -121,8 +121,6 @@ def api_buy():
         "chat_id": chat_id,
         "title": "Премиум доступ",
         "photo_url": "https://raw.githubusercontent.com/ElenaNub/tg-back/main/pay.jpg",
-"photo_width": 512,
-"photo_height": 256,
         "description": f"{days} дн. доступа",
         "payload": payload,
         "provider_token": PROVIDER_TOKEN,
