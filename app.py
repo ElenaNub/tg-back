@@ -127,8 +127,30 @@ def api_buy():
         "start_parameter": payload,
         "photo_url": "https://raw.githubusercontent.com/ElenaNub/tg-back/main/pay.jpg",
         "photo_width": 512,
-        "photo_height": 256
+        "photo_height": 256,
+         "need_email": True,
+    "send_email_to_provider": True,
+    "provider_data": {
+        "receipt": {
+            "items": [
+                {
+                    "description": f"Доступ на {days} дн.",
+                    "quantity": 1,
+                    "amount": {
+                        "value": f"{amount/100:.2f}",
+                        "currency": "RUB"
+                    },
+                    "vat_code": 1,
+                    "payment_mode": "full_payment",
+                    "payment_subject": "service"
+                }
+            ],
+            "tax_system_code": 1
+        }
     }
+}
+        
+    
 
     log.info("▶️ Запрос createInvoiceLink: %r", invoice_req)
     try:
